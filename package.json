@@ -1,0 +1,25 @@
+{
+  "name": "devkit-docs-spider",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.2",
+    "cli-table2": "^0.2.0",
+    "then-request": "^4.1.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sneezry/devkit-docs-spider.git"
+  },
+  "author": "Zhe Li",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Sneezry/devkit-docs-spider/issues"
+  },
+  "homepage": "https://github.com/Sneezry/devkit-docs-spider#readme"
+}
