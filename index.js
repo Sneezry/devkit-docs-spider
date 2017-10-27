@@ -3,6 +3,7 @@ const request = require('then-request');
 const url = require('url');
 const Table = require('cli-table2');
 const colors = require('colors/safe');
+const fs = require('fs');
 
 let urlList = [];
 let results = [];
@@ -13,6 +14,12 @@ let success = 0;
 let fail = 0;
 let ignore = 0;
 let crawlFail = 0;
+let logMessage = '';
+
+let logger = log => {
+    console.log(log);
+    logMessage += log.replace(/\033\[\d{2}m/g, '') + '\n';
+}
 
 let wrapping = (str, length) => {
     
@@ -31,7 +38,7 @@ let wrapping = (str, length) => {
     return _str.join('\n');
 }
 
-let spider = (entry, origin = null) => {
+const spider = (entry, origin, cb) => {
     if (!entry) {
         return;
     }
@@ -63,7 +70,7 @@ let spider = (entry, origin = null) => {
     let hostname = url.parse(entry).hostname;
     
     if (exludeList.indexOf(hostname) !== -1) {
-        console.log(`[Ignored] ${entry}`);
+        logger(`[Ignored] ${entry}`);
         results.push({
             url: entry,
             origin: origin,
@@ -77,12 +84,12 @@ let spider = (entry, origin = null) => {
         return;
     }
 
-    console.log(`Checking ${entry}`);
+    logger(`Checking ${entry}`);
 
     request('HEAD', entry, {gzip: false, headers: {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36'}}).then(res => {
         let statusCode = res.statusCode;
 
-        console.log(`[${statusCode}] ${entry}`);
+        logger(`[${statusCode}] ${entry}`);
 
         if (statusCode >= 200 && statusCode < 400) {
             results.push({
@@ -103,9 +110,11 @@ let spider = (entry, origin = null) => {
                     links = $('a');
                     for (let i = 0; i < links.length; i++) {
                         let url = links[i].attribs.href;
-                        spider(url, entry);
+                        spider(url, entry, cb);
                     }
-                    destoryWorker();
+                    if(destoryWorker()) {
+                        cb();
+                    }
                 }, err => {
                     errCrawlList.push({
                         url: entry,
@@ -115,7 +124,9 @@ let spider = (entry, origin = null) => {
                     crawlFail++;
                 });
             } else {
-                destoryWorker();
+                if(destoryWorker()) {
+                    cb();
+                }
             }
         } else {
             results.push({
@@ -128,10 +139,12 @@ let spider = (entry, origin = null) => {
 
             fail++;
 
-            destoryWorker();
+            if(destoryWorker()) {
+                cb();
+            }
         }
     }, err => {
-        console.log(`[ERR] ${entry}`);
+        logger(`[ERR] ${entry}`);
 
         results.push({
             url: entry,
@@ -147,7 +160,7 @@ let spider = (entry, origin = null) => {
 
 let destoryWorker = () => {
     if (urlList.length === results.length) {
-        console.log('Check Results:');
+        logger('Check Results:');
         let table = new Table({
             head: ['Success', 'Code', 'URL', 'Origin', 'Error']
           , colWidths: [9, 6, 50, 50, 25]
@@ -166,10 +179,10 @@ let destoryWorker = () => {
         });
 
         let tableString = table.toString();
-        console.log(tableString);
+        logger(tableString);
 
         if (errCrawlList.length > 0) {
-            console.log('Craw Failed List:');
+            logger('Craw Failed List:');
             let table = new Table({
                 head: ['URL', 'Error']
                 , colWidths: [50, 25]
@@ -180,11 +193,33 @@ let destoryWorker = () => {
             });
     
             let tableString = table.toString();
-            console.log(tableString);
+            logger(tableString);
         }
 
-        console.log(`\n>>> Summary <<<\n\nCrawl ${colors.cyan(urlList.length)} URLs\n${colors.cyan(success)} success\n${colors.cyan(fail)} fail\n${colors.cyan(crawlFail)} craw fail\n${colors.cyan(ignore)} ignore`);
+        logger(`\n>>> Summary <<<\n\nCrawled ${colors.cyan(urlList.length)} URLs\n${colors.cyan(success)} succeeded\n${colors.cyan(fail)} failed\n${colors.cyan(crawlFail)} craw failed\n${colors.cyan(ignore)} ignored`);
+        return true;
     }
+    return false;
 }
 
-spider('https://microsoft.github.io/azure-iot-developer-kit/');
+let Spider = async () => {
+    return new Promise((resolve, reject) => {
+        try {
+            spider('https://microsoft.github.io/azure-iot-developer-kit/', null, () => {
+                fs.writeFileSync('spider.log', logMessage.replace(/\n/g, '\r\n'));
+                if (fail === 0 && crawlFail === 0) {
+                    resolve(0);
+                } else {
+                    resolve(1);
+                }
+            });
+        } catch(e) {
+            // prevent breaking Jenkins job, always return resolve
+            fs.writeFileSync('spider.log', logMessage.replace(/\n/g, '\r\n') + '\r\n' + e.message);
+            console.error(e);
+            resolve(1);
+        }
+    });
+}
+
+module.exports = Spider;
