@@ -1,6 +1,6 @@
 const cheerio = require('cheerio');
 const request = require('then-request');
-const { URL } = require('url');
+const url = require('url');
 const Table = require('cli-table2');
 const colors = require('colors/safe');
 
@@ -60,7 +60,7 @@ let spider = (entry, origin = null) => {
 
     urlList.push(entry);
     
-    let hostname = new URL(entry).hostname;
+    let hostname = url.parse(entry).hostname;
     
     if (exludeList.indexOf(hostname) !== -1) {
         console.log(`[Ignored] ${entry}`);
